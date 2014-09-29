@@ -62,11 +62,7 @@ private:
 public:
 	node_ptr(Node *ptr) : m_ptr(ptr) { }
 
-	Node * get() {
-		return m_ptr;
-	}
-
-	const Node * get() const {
+	Node * get() const {
 		return m_ptr;
 	}
 
@@ -118,7 +114,8 @@ vector<Node *> nodes;
 vector<Node *> active_nodes;
 float ek_avg = -1;
 
-std::default_random_engine random;
+// change to avoid name conflict - there is a function random() in gcc stdlib.h
+std::default_random_engine ran0;
 
 // node buffer objects
 GLuint nodes0_bo = 0, nodes1_bo = 0;
@@ -189,7 +186,7 @@ void split_edge(Node *a, Node *b, Node *c) {
 }
 
 void init() {
-	Node *n0, *n1, *n2;
+	Node *n0, *n1;
 	n0 = new Node(float3(-1, 0, 0));
 	n1 = new Node(float3(1, 0, 0));
 	nodes.push_back(n0);
@@ -220,7 +217,7 @@ void step() {
 		for (unsigned i = 0; i < nodes.size() / 15 + 1; i++) {
 			Node *n0 = split_q.top().get();
 			split_q.pop();
-			if (bd(random)) continue;
+			if (bd(ran0)) continue;
 			priority_queue<node_split_ptr> q2;
 			for (Node *n : n0->edges) {
 				q2.push(n);
@@ -228,9 +225,9 @@ void step() {
 			Node *n1 = q2.top().get();
 			assert(n1);
 			uniform_real_distribution<float> lerp_dist(0, 1);
-			Node *n2 = new Node(float3::lerp(n0->p, n1->p, lerp_dist(random)));
+			Node *n2 = new Node(float3::lerp(n0->p, n1->p, lerp_dist(ran0)));
 			n2->d = 0.5f * (n0->d + n1->d);
-			if (cd(random) > 85) {
+			if (cd(ran0) > 85) {
 				n2->d *= 0.75;
 			}
 			split_edge(n0, n2, n1);
@@ -246,9 +243,9 @@ void step() {
 		for (unsigned i = 0; i < nodes.size() / 6 + 1; i++) {
 			Node *n0 = branch_q.top().get();
 			branch_q.pop();
-			if (bd(random)) continue;
+			if (bd(ran0)) continue;
 			uniform_real_distribution<float> pd(-0.1, 0.1);
-			Node *n2 = new Node(n0->p + float3(pd(random), pd(random), 0));
+			Node *n2 = new Node(n0->p + float3(pd(ran0), pd(ran0), 0));
 			n2->d = n0->d + 1.f;
 			make_edge(n0, n2);
 			nodes.push_back(n2);
@@ -279,7 +276,7 @@ void step() {
 			float3 fc = v.unit() * k;
 			if (fc.isnan()) {
 				uniform_real_distribution<float> fd(-1, 1);
-				f += float3(fd(random), fd(random), 0);
+				f += float3(fd(ran0), fd(ran0), 0);
 			} else {
 				f += fc;
 			}
