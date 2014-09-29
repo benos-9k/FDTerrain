@@ -49,14 +49,14 @@ add_subdirectory(src)
 
 # resources - this is a custom target with no build step;
 # primarily to allow shader editing in IDEs
-#add_subdirectory(res)
+add_subdirectory(res)
 
 # set IDE display folders
 SET_PROPERTY(TARGET glfw PROPERTY FOLDER "ext")
 SET_PROPERTY(TARGET glew PROPERTY FOLDER "ext")
 SET_PROPERTY(TARGET gecom PROPERTY FOLDER "src")
 SET_PROPERTY(TARGET fdterrain PROPERTY FOLDER "src")
-#SET_PROPERTY(TARGET res PROPERTY FOLDER "res")
+SET_PROPERTY(TARGET res PROPERTY FOLDER "res")
 
 
 
