@@ -11,6 +11,7 @@
 
 struct Node {
 	// this should be 2x vec4 in std140
+	// TODO edges
 	vec2 p, v, a;
 	float m, d;
 };
@@ -34,13 +35,12 @@ void main() {
 
 		float x = distance(n.p, texCoord * 2.0 - 1.0);
 
-		x *= 8.0;
+		x *= 12.0 + 3.0 * n.d;
 		
-		a += exp(-n.d) * exp(-pow(abs(1.0 * x), 2.0)) * (cos(1.0 * x) + 0.8) / 1.8;
+		float b = (0.9 * pow(0.6, n.d) + 0.1) * exp(-pow(abs(1.0 * x), 2.0 - 0.9 * pow(0.7, n.d)));
 
+		a += b;
 	}
-
-	//a /= 2.0;
 
 	frag_color = vec4(vec3(a), 1.0);
 }

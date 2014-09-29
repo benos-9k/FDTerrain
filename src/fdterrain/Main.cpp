@@ -20,6 +20,10 @@ using namespace i3d;
 
 Window *win = nullptr;
 
+double rotx = math::pi() / 6;
+double roty = math::pi() / 4;
+double dolly = -2.5;
+
 
 struct Node {
 	float3 p, v, a;
@@ -123,6 +127,17 @@ GLuint nodes0_bo = 0, nodes1_bo = 0;
 GLuint fbo_hmap = 0;
 GLuint tex_hmap = 0;
 
+mat4d perspectiveFOV(double fov_y, double aspect, double znear, double zfar) {
+	mat4d m(0);
+	double f = math::cot(fov_y / 2.0);
+	m(0, 0) = f / aspect;
+	m(1, 1) = f;
+	m(2, 2) = (zfar + znear) / (znear - zfar);
+	m(2, 3) = (2 * zfar * znear) / (znear - zfar);
+	m(3, 2) = -1;
+	return m;
+}
+
 void draw_fullscreen(unsigned instances = 1) {
 	static GLuint vao = 0;
 	if (vao == 0) {
@@ -186,7 +201,7 @@ void step() {
 	if (ek_avg < 0.5) {
 		// one generation finished, prepare next one
 		
-		uniform_int_distribution<unsigned> bd(0, 1);
+		uniform_int_distribution<unsigned> bd(0, 1), cd(0, 100);
 
 		// make 'old' active nodes heavier, and remove the heaviest
 		vector<Node *> old_active_nodes = move(active_nodes);
@@ -215,6 +230,9 @@ void step() {
 			uniform_real_distribution<float> lerp_dist(0, 1);
 			Node *n2 = new Node(float3::lerp(n0->p, n1->p, lerp_dist(random)));
 			n2->d = 0.5f * (n0->d + n1->d);
+			if (cd(random) > 85) {
+				n2->d *= 0.75;
+			}
 			split_edge(n0, n2, n1);
 			nodes.push_back(n2);
 			active_nodes.push_back(n2);
@@ -348,7 +366,7 @@ void display(const size2i &sz) {
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 	glClearColor(1, 1, 1, 1);
 	glViewport(0, 0, sz.w, sz.h);
-	glClear(GL_COLOR_BUFFER_BIT);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, tex_hmap);
@@ -362,7 +380,17 @@ void display(const size2i &sz) {
 
 	glUniform1i(glGetUniformLocation(prog_terr, "sampler_hmap"), 0);
 
+	mat4d mv = mat4d::translate(0, 0, dolly) * mat4d::rotateX(rotx) * mat4d::rotateY(roty);
+	mat4d proj = perspectiveFOV(math::pi() / 3, sz.ratio(), 0.1, 100);
+
+	glUniformMatrix4fv(glGetUniformLocation(prog_terr, "modelview_matrix"), 1, true, mat4f(mv));
+	glUniformMatrix4fv(glGetUniformLocation(prog_terr, "projection_matrix"), 1, true, mat4f(proj));
+
+	glEnable(GL_DEPTH_TEST);
+
 	draw_fullscreen((hmap_size - 1) * (hmap_size - 1));
+
+	glDisable(GL_DEPTH_TEST);
 
 	glUseProgram(0);
 
@@ -405,6 +433,28 @@ int main() {
 	win->makeContextCurrent();
 
 	win->shaderManager()->addSourceDirectory("./res/shader");
+
+	win->onKeyPress.subscribe([](const key_event &e) {
+		if (e.key == GLFW_KEY_RIGHT) {
+			roty -= 0.02;
+		}
+		if (e.key == GLFW_KEY_LEFT) {
+			roty += 0.02;
+		}
+		if (e.key == GLFW_KEY_UP) {
+			rotx += 0.02;
+		}
+		if (e.key == GLFW_KEY_DOWN) {
+			rotx -= 0.02;
+		}
+		if (e.key == GLFW_KEY_EQUAL) {
+			dolly += 0.02;
+		}
+		if (e.key == GLFW_KEY_MINUS) {
+			dolly -= 0.02;
+		}
+		return false;
+	}).forever();
 
 	init();
 
