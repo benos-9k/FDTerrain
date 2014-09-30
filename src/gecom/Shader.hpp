@@ -303,7 +303,7 @@ namespace gecom {
 			return m_xfb_mode;
 		}
 
-		inline const std::vector<std::string> feedbackVaryings() const {
+		inline const std::vector<std::string> & feedbackVaryings() const {
 			return m_xfb_varyings;
 		}
 
@@ -331,15 +331,20 @@ namespace gecom {
 			if (spec.m_xfb_mode) {
 				switch (spec.m_xfb_mode) {
 				case GL_INTERLEAVED_ATTRIBS:
-					oss << "GL_INTERLEAVED_ATTRIBS ";
+					oss << "-feedback-interleaved=";
 					break;
 				case GL_SEPARATE_ATTRIBS:
-					oss << "GL_SEPARATE_ATTRIBS ";
+					oss << "-feedback-separate=";
 					break;
 				default:
-					oss << "???";
-					// TODO
+					// shouldn't happen
+					oss << "-feedback-???=";
+					break;
 				}
+				for (auto it = spec.m_xfb_varyings.begin(); it < spec.m_xfb_varyings.end() - 1; ++it) {
+					oss << *it << ",";
+				}
+				oss << *spec.m_xfb_varyings.rbegin() << " ";
 			}
 			out << trim(oss.str());
 			return out;
@@ -667,22 +672,22 @@ namespace gecom {
 				// if the ext is for a specific type, only compile as that type
 				if (ext == ".vert") {
 					glAttachShader(id, shader(GL_VERTEX_SHADER, *it, spec.definitions(), true));
-				} else if (ext == ".frag") {
-					glAttachShader(id, shader(GL_FRAGMENT_SHADER, *it, spec.definitions(), true));
 				} else if (ext == ".geom") {
 					glAttachShader(id, shader(GL_GEOMETRY_SHADER, *it, spec.definitions(), true));
+				} else if (ext == ".frag") {
+					glAttachShader(id, shader(GL_FRAGMENT_SHADER, *it, spec.definitions(), true));
 				} else {
 					// unable to determine type from extension, try everything
-					static const std::vector<GLenum> types {
+					static const GLenum types[] {
 						GL_VERTEX_SHADER,
-						GL_FRAGMENT_SHADER,
 						GL_GEOMETRY_SHADER,
+						GL_FRAGMENT_SHADER,
 						GL_TESS_CONTROL_SHADER,
 						GL_TESS_EVALUATION_SHADER
 					};
-					for (GLenum type : types) {
+					for (unsigned i = 0; i < 5; i++) {
 						try {
-							glAttachShader(id, shader(type, *it, spec.definitions(), false));
+							glAttachShader(id, shader(types[i], *it, spec.definitions(), false));
 						} catch (shader_type_error &e) {
 							// type wasnt declared in source, skip
 						}
@@ -690,9 +695,23 @@ namespace gecom {
 				}
 			}
 
-			log("ShaderMan") << "Linking shader program '" << spec << "'...";
+			// setup transform feedback if needed
+			if (spec.feedbackMode()) {
+				std::vector<const char *> va;
+				for (auto it = spec.feedbackVaryings().cbegin(); it != spec.feedbackVaryings().cend(); ++it) {
+					// this depends on the spec returning a reference to the vector
+					va.push_back(it->c_str());
+				}
+				if (va.empty()) {
+					glTransformFeedbackVaryings(id, 0, nullptr, spec.feedbackMode());
+				} else {
+					glTransformFeedbackVaryings(id, va.size(), &va[0], spec.feedbackMode());
+				}
+			}
+
+			log("ShaderMan") << "Linking shader program (id=" << id << ") '" << spec << "'...";
 			linkShaderProgram(id);
-			log("ShaderMan") << "Shader program compiled and linked successfully.";
+			log("ShaderMan") << "Shader program (id=" << id << ") compiled and linked successfully.";
 
 			// cache it
 			program_t program;
