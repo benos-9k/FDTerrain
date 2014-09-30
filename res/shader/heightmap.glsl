@@ -37,7 +37,7 @@ void main() {
 
 		x *= 12.0 + 3.0 * n.d;
 		
-		float b = (0.9 * pow(0.6, n.d) + 0.1) * exp(-pow(abs(1.0 * x), 2.0 - 0.9 * pow(0.7, n.d)));
+		float b = (0.9 * pow(0.6, n.d) + 0.1) * exp(-pow(abs(1.0 * x), 2.0 - 0.8 * pow(0.7, n.d)));
 
 		a += b;
 	}
