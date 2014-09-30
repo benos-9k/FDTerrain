@@ -200,11 +200,23 @@ namespace gecom {
 	private:
 		std::set<std::string> m_sources;
 		std::map<std::string, std::string> m_definitions;
+		GLenum m_xfb_mode = 0;
+		std::vector<std::string> m_xfb_varyings;
 
 		// cached information if this spec has already been compiled
 		const ShaderManager *m_shaderman = nullptr;
 		std::chrono::steady_clock::time_point m_timestamp;
 		GLuint m_prog;
+
+		template <typename T0, typename... TR>
+		inline void add_xfb_varyings(const T0 &v0, const TR &...vr) {
+			std::ostringstream oss;
+			oss << v0;
+			m_xfb_varyings.push_back(oss.str());
+			add_xfb_varyings(vr...);
+		}
+
+		inline void add_xfb_varyings() { }
 		
 	public:
 		inline shader_program_spec & source(const std::string &name) {
@@ -261,6 +273,24 @@ namespace gecom {
 			return define(symbol, "");
 		}
 
+		// setup input to glTransformFeedbackVaryings() using GL_INTERLEAVED_ATTRIBS
+		template <typename... TR>
+		inline shader_program_spec & feedbackInterleaved(const TR &...varyings) {
+			m_xfb_mode = GL_INTERLEAVED_ATTRIBS;
+			m_xfb_varyings.clear();
+			add_xfb_varyings(varyings...);
+			return *this;
+		}
+
+		// setup input to glTransformFeedbackVaryings() using GL_SEPARATE_ATTRIBS
+		template <typename... TR>
+		inline shader_program_spec & feedbackSeparate(const TR &...varyings) {
+			m_xfb_mode = GL_SEPARATE_ATTRIBS;
+			m_xfb_varyings.clear();
+			add_xfb_varyings(varyings...);
+			return *this;
+		}
+
 		inline const std::set<std::string> & sources() const {
 			return m_sources;
 		}
@@ -269,8 +299,17 @@ namespace gecom {
 			return m_definitions;
 		}
 
+		inline GLenum feedbackMode() const {
+			return m_xfb_mode;
+		}
+
+		inline const std::vector<std::string> feedbackVaryings() const {
+			return m_xfb_varyings;
+		}
+
 		inline bool operator==(const shader_program_spec &other) const {
-			return m_sources == other.m_sources && m_definitions == other.m_definitions;
+			return m_sources == other.m_sources && m_definitions == other.m_definitions &&
+				m_xfb_mode == other.m_xfb_mode && m_xfb_varyings == other.m_xfb_varyings;
 		}
 
 		inline bool operator!=(const shader_program_spec &other) const {
@@ -288,6 +327,19 @@ namespace gecom {
 					oss << "=" << def.second;
 				}
 				oss << " ";
+			}
+			if (spec.m_xfb_mode) {
+				switch (spec.m_xfb_mode) {
+				case GL_INTERLEAVED_ATTRIBS:
+					oss << "GL_INTERLEAVED_ATTRIBS ";
+					break;
+				case GL_SEPARATE_ATTRIBS:
+					oss << "GL_SEPARATE_ATTRIBS ";
+					break;
+				default:
+					oss << "???";
+					// TODO
+				}
 			}
 			out << trim(oss.str());
 			return out;
