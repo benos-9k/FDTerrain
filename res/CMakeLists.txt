@@ -2,8 +2,10 @@
 
 SET(SHADERS
 	"shader/fullscreen.glsl"
+	"shader/nodes.glsl"
 	"shader/heightmap.glsl"
 	"shader/terrain.glsl"
+	"shader/forcedirection.glsl"
 )
 
 add_custom_target(

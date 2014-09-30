@@ -2,25 +2,9 @@
 #version 330 core
 
 #include "fullscreen.glsl"
+#include "nodes.glsl"
 
 #shader fragment
-
-#ifndef MAX_NODES
-#define MAX_NODES 1024
-#endif
-
-struct Node {
-	// this should be 2x vec4 in std140
-	// TODO edges
-	vec2 p, v, a;
-	float m, d;
-};
-
-layout(std140) uniform NodesBlock {
-	Node nodes[MAX_NODES];
-};
-
-uniform int num_nodes;
 
 #ifdef _FRAGMENT_
 
@@ -31,7 +15,7 @@ void main() {
 	float a = 0.0;
 
 	for (int i = 0; i < num_nodes; i++) {
-		Node n = nodes[i];
+		Node n = nodeGet(i);
 
 		float x = distance(n.p, texCoord * 2.0 - 1.0);
 

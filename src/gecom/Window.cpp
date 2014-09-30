@@ -219,92 +219,96 @@ namespace gecom {
 			// enum documentation:
 			// https://www.opengl.org/sdk/docs/man4/html/glDebugMessageControl.xhtml
 			
-			// message source within GL -> log source
-			string log_source = "GL";
-			switch (source) {
-			case GL_DEBUG_SOURCE_API:
-				log_source = "GL:API";
-				break;
-			case GL_DEBUG_SOURCE_WINDOW_SYSTEM:
-				log_source = "GL:Window";
-				break;
-			case GL_DEBUG_SOURCE_SHADER_COMPILER:
-				log_source = "GL:Shader";
-				break;
-			case GL_DEBUG_SOURCE_THIRD_PARTY:
-				log_source = "GL:ThirdParty";
-				break;
-			case GL_DEBUG_SOURCE_APPLICATION:
-				log_source = "GL:App";
-				break;
-			case GL_DEBUG_SOURCE_OTHER:
-				log_source = "GL:Other";
-				break;
-			default:
-				break;
-			}
-
-			// piecewise construct log message
-			auto logs = log(log_source);
 			bool exceptional = false;
+			
+			// new scope so log messages are submitted before exception is thrown
+			{
+				// message source within GL -> log source
+				string log_source = "GL";
+				switch (source) {
+				case GL_DEBUG_SOURCE_API:
+					log_source = "GL:API";
+					break;
+				case GL_DEBUG_SOURCE_WINDOW_SYSTEM:
+					log_source = "GL:Window";
+					break;
+				case GL_DEBUG_SOURCE_SHADER_COMPILER:
+					log_source = "GL:Shader";
+					break;
+				case GL_DEBUG_SOURCE_THIRD_PARTY:
+					log_source = "GL:ThirdParty";
+					break;
+				case GL_DEBUG_SOURCE_APPLICATION:
+					log_source = "GL:App";
+					break;
+				case GL_DEBUG_SOURCE_OTHER:
+					log_source = "GL:Other";
+					break;
+				default:
+					break;
+				}
 
-			// message type -> log type
-			switch (type) {
-			case GL_DEBUG_TYPE_ERROR:
-				logs.error();
-				logs << "Error";
-				exceptional = true;
-				break;
-			case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
-				logs.warning();
-				logs << "Deprecated Behaviour";
-				break;
-			case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
-				logs.warning();
-				logs << "Undefined Behaviour";
-				break;
-			case GL_DEBUG_TYPE_PORTABILITY:
-				logs.warning();
-				logs << "Portability";
-				break;
-			case GL_DEBUG_TYPE_PERFORMANCE:
-				logs.warning();
-				logs << "Performance";
-				break;
-			case GL_DEBUG_TYPE_MARKER:
-				logs << "Marker";
-				break;
-			case GL_DEBUG_TYPE_PUSH_GROUP:
-				logs << "Push Group";
-				break;
-			case GL_DEBUG_TYPE_POP_GROUP:
-				logs << "Pop Group";
-				break;
-			case GL_DEBUG_TYPE_OTHER:
-				logs << "Other";
-				break;
+				// piecewise construct log message
+				auto logs = log(log_source);
+
+				// message type -> log type
+				switch (type) {
+				case GL_DEBUG_TYPE_ERROR:
+					logs.error();
+					logs << "Error";
+					exceptional = true;
+					break;
+				case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
+					logs.warning();
+					logs << "Deprecated Behaviour";
+					break;
+				case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+					logs.warning();
+					logs << "Undefined Behaviour";
+					break;
+				case GL_DEBUG_TYPE_PORTABILITY:
+					logs.warning();
+					logs << "Portability";
+					break;
+				case GL_DEBUG_TYPE_PERFORMANCE:
+					logs.warning();
+					logs << "Performance";
+					break;
+				case GL_DEBUG_TYPE_MARKER:
+					logs << "Marker";
+					break;
+				case GL_DEBUG_TYPE_PUSH_GROUP:
+					logs << "Push Group";
+					break;
+				case GL_DEBUG_TYPE_POP_GROUP:
+					logs << "Pop Group";
+					break;
+				case GL_DEBUG_TYPE_OTHER:
+					logs << "Other";
+					break;
+				}
+
+				// severity -> log verbosity
+				switch (severity) {
+				case GL_DEBUG_SEVERITY_NOTIFICATION:
+					logs % 3;
+					break;
+				case GL_DEBUG_SEVERITY_LOW:
+					logs % 2;
+					break;
+				case GL_DEBUG_SEVERITY_MEDIUM:
+					logs % 1;
+					break;
+				case GL_DEBUG_SEVERITY_HIGH:
+					logs % 0;
+					break;
+				}
+
+				// actual message. id = as returned by glGetError()
+				ostringstream oss;
+				oss << " [" << id << "] : " << message;
+				logs << oss.str();
 			}
-
-			// severity -> log verbosity
-			switch (severity) {
-			case GL_DEBUG_SEVERITY_NOTIFICATION:
-				logs % 3;
-				break;
-			case GL_DEBUG_SEVERITY_LOW:
-				logs % 2;
-				break;
-			case GL_DEBUG_SEVERITY_MEDIUM:
-				logs % 1;
-				break;
-			case GL_DEBUG_SEVERITY_HIGH:
-				logs % 0;
-				break;
-			}
-
-			// actual message. id = as returned by glGetError()
-			ostringstream oss;
-			oss << " [" << id << "] : " << message;
-			logs << oss.str();
 			
 #ifndef GECOM_GL_NO_EXCEPTIONS
 			if (exceptional) {
