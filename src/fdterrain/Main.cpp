@@ -458,14 +458,17 @@ unsigned step_gpu() {
 
 unsigned step() {
 	
-	if (ek_avg < 0.5) {
+	if (ek_avg < 1.5) {
 		subdivide_and_branch();
 	}
 
 	float ek = 0;
 
 	// calculate forces, accelerations, velocities, ek
-	for (Node *n0 : active_nodes) {
+#pragma omp parallel for
+	for (int i = 0; i < active_nodes.size(); i++) {
+		Node *n0 = active_nodes[i];
+
 		// acting force
 		float3 f;
 
@@ -507,13 +510,15 @@ unsigned step() {
 		n0->v *= 0.995;
 
 		// ek
-		ek += 0.5f * n0->m * pow(n0->v.mag(), 2.f);
+		ek += n0->v.mag();
 	}
 
 	ek_avg = ek / active_nodes.size();
 
 	// update position
-	for (Node *n0 : active_nodes) {
+#pragma omp parallel for
+	for (int i = 0; i < active_nodes.size(); i++) {
+		Node *n0 = active_nodes[i];
 		n0->p += n0->v * 0.0001; // timestep
 	}
 
@@ -667,12 +672,12 @@ int main() {
 
 		auto frame_start_time = chrono::steady_clock::now();
 		while (chrono::steady_clock::now() - frame_start_time < chrono::milliseconds(50)) {
-			// sps += step();
-			sps += step_gpu();
+			sps += step();
+			// sps += step_gpu();
 		}
 
 		// if using step() need to upload before draw
-		// upload_nodes();
+		upload_nodes();
 		display(win->size());
 
 		if (chrono::steady_clock::now() - time_last_fps > chrono::seconds(1)) {
