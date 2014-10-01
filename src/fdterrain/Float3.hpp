@@ -257,6 +257,66 @@ namespace initial3d {
 
 	};
 
+	// axis-aligned bounding box
+	class aabb {
+	private:
+		float3 m_center;
+		float3 m_halfsize;
+
+	public:
+		inline aabb() { }
+
+		inline aabb(const float3 &center_) : m_center(center_) { }
+
+		inline aabb(const float3 &center_, const float3 &halfsize_) : m_center(center_), m_halfsize(float3::abs(halfsize_)) { }
+
+		inline float3 center() const {
+			return m_center;
+		}
+
+		inline float3 halfsize() const {
+			return m_halfsize;
+		}
+
+		inline float3 min() const {
+			return m_center - m_halfsize;
+		}
+
+		inline float3 max() const {
+			return m_center + m_halfsize;
+		}
+
+		inline bool contains(const float3 &p) const {
+			return float3::all(float3::abs(p - m_center) <= m_halfsize);
+		}
+
+		inline bool contains(const aabb &a) const {
+			return float3::all(float3::abs(a.m_center - m_center) <= (m_halfsize - a.m_halfsize));
+		}
+
+		inline bool contains_partial(const aabb &a) const {
+			// intersects + contains in 1 dimension
+			return float3::any(float3::abs(a.m_center - m_center) <= (m_halfsize - a.m_halfsize)) && intersects(a);
+		}
+
+		inline bool intersects(const aabb &a) const {
+			return float3::all(float3::abs(a.m_center - m_center) <= (m_halfsize + a.m_halfsize));
+		}
+
+		inline friend std::ostream & operator<<(std::ostream &out, const aabb &a) {
+			out << "aabb[" << a.min() << " <= x <= " << a.max() << "]";
+			return out;
+		}
+
+		inline static aabb fromPoints(const float3 &p0, const float3 &p1) {
+			float3 minv = float3::min(p0, p1);
+			float3 maxv = float3::max(p0, p1);
+			float3 hs = 0.5 * (maxv - minv);
+			return aabb(minv + hs, hs);
+		}
+
+	};
+
 }
 
 #endif
