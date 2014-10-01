@@ -44,7 +44,8 @@ struct Node {
 	inline Node(const float3 &p_) : p(p_), id(next_id++) { }
 
 	inline float charge() {
-		return 8;
+		// TODO tweak
+		return max<float>(8.f + 0.0f * d, 2.f);
 	}
 
 	inline Node * edge(unsigned i) const {
@@ -60,10 +61,16 @@ struct Node {
 		for (Node *n : edges) {
 			a += (n->p - p).mag();
 		}
+		// dont divide by num edges, works better
+		// return a + 0.01 * d;
 		return a + 0.02 * (d + 1.f);
 	}
 
 	inline float branch_priority() const {
+		// TODO how does this work?
+		// TODO leaves should not branch?
+		//if (edges.size() <= 1) return 0.f;
+		//return 1.f / float(edges.size()) - 0.07 * d;
 		return 1.f / max<float>(float(edges.size()) - 2.f + 0.35f * (d + 1.f), 1.f);
 	}
 	
@@ -564,7 +571,7 @@ void subdivide_and_branch() {
 		uniform_real_distribution<float> fd(0, 1);
 		Node *n2 = new Node(float3::lerp(n0->p, n1->p, fd(ran0)));
 		n2->d = 0.5f * (n0->d + n1->d);
-		n2->d += fd(ran0) - 0.5;
+		n2->d += 0.5 * fd(ran0) - 0.3;
 		split_edge(n0, n2, n1);
 		nodes.push_back(n2);
 		active_nodes.push_back(n2);

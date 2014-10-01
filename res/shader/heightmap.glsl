@@ -19,9 +19,9 @@ void main() {
 
 		float x = distance(n.p, texCoord * 2.0 - 1.0);
 
-		x *= 12.0 + 3.0 * n.d;
+		x *= 12.0 * pow(1.3, n.d);
 		
-		float b = (0.9 * pow(0.6, n.d) + 0.1) * exp(-pow(abs(1.0 * x), 2.0 - 0.8 * pow(0.7, n.d)));
+		float b = pow(0.5, n.d) * exp(-pow(abs(x), 2.0 - 0.8 * pow(0.7, n.d)));
 
 		a += b;
 	}
