@@ -12,7 +12,7 @@
 
 const float timestep = 0.0001;
 
-#ifdef FD_UPDATE
+#ifdef FD_MOVE
 uniform bool should_write_total_speed;
 #endif
 
@@ -73,7 +73,7 @@ void main() {
 		float k = min((1.0 / d2) * 70.0, 100000.0); // charge constant
 		vec2 fc = normalize(v) * k;
 		// TODO better nan handling?
-		//f += mix(fc, vec2(1.0), isnan(fc));
+		f += mix(fc, vec2(1.0), isnan(fc));
 	}
 
 	// spring contraction from connected nodes
@@ -82,7 +82,7 @@ void main() {
 		Node n1 = nodeGet(n0.e[i]);
 		// direction is towards other node
 		vec2 v = n1.p - n0.p;
-		//f += 1000000.0 * v; // spring constant
+		f += 1000000.0 * v; // spring constant
 	}
 
 	// acceleration
@@ -91,12 +91,10 @@ void main() {
 	// velocity delta
 	vec2 dv = a * timestep;
 
-	emitTexel(id[0], vec4(dv, 0.0, 0.0));
-	
-	if (should_write_total_speed) {
-		emitTexel(nodeLastTexel(), vec4(length(n0.v)));
+	if (n0.m < 1e3) {
+		emitTexel(id[0], vec4(dv, 0.0, 0.0));
 	}
-
+	
 #endif
 	
 // update positions
@@ -105,8 +103,12 @@ void main() {
 	// position delta
 	vec2 dp = n0.v * timestep;
 	
-	if (n0.m < 0.0) {
+	if (n0.m < 1e3) {
 		emitTexel(id[0], vec4(dp, 0.0, 0.0));
+	}
+
+	if (should_write_total_speed) {
+		emitTexel(nodeLastTexel(), vec4(length(n0.v)));
 	}
 
 #endif

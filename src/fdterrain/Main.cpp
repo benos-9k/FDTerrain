@@ -313,6 +313,8 @@ void init() {
 
 void subdivide_and_branch() {
 	// one generation finished, prepare next one
+
+	//if (nodes.size() > 1200) return;
 	
 	uniform_int_distribution<unsigned> bd(0, 1), cd(0, 100);
 
@@ -375,7 +377,7 @@ void subdivide_and_branch() {
 unsigned step_gpu() {
 
 	// TODO calibrate
-	if (ek_avg < 0.0) {
+	if (ek_avg < 1.5) {
 		download_nodes();
 		subdivide_and_branch();
 		upload_nodes();
@@ -398,7 +400,7 @@ unsigned step_gpu() {
 	}
 
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-	glReadBuffer(GL_COLOR_ATTACHMENT1);
+	glReadBuffer(GL_COLOR_ATTACHMENT0);
 	glViewport(0, 0, tex_size, tex_size);
 
 	// add things
@@ -411,42 +413,41 @@ unsigned step_gpu() {
 	float ekxx[] { 0, 0, 0, 0 };
 
 	// zero velocity accumulator
-	glBindTexture(GL_TEXTURE_2D, tex_nodes_vmd);
-	glTexSubImage2D(GL_TEXTURE_2D, 0, tex_size - 1, tex_size - 1, 1, 1, GL_RGBA, GL_FLOAT, ekxx);
+	glBindTexture(GL_TEXTURE_2D, tex_nodes_p);
+	glTexSubImage2D(GL_TEXTURE_2D, 0, tex_size - 1, tex_size - 1, 1, 1, GL_RG, GL_FLOAT, ekxx);
 
 	
 	static const unsigned iterations = 10;
 	for (unsigned i = 0; i < iterations; i++) {
 
+		// write total speed on last iteration
 		bool should_write_total_speed = (i + 1) == iterations;
 
 		// update velocity
 		glDrawBuffer(GL_COLOR_ATTACHMENT1);
+		// prevent writing to mass/depth
+		glColorMask(GL_TRUE, GL_TRUE, GL_FALSE, GL_FALSE);
 		glUseProgram(prog_update);
 		// use damping blend
 		glBlendFuncSeparate(GL_ONE, GL_CONSTANT_COLOR, GL_ONE, GL_ONE);
-		glUniform1i(glGetUniformLocation(prog_update, "should_write_total_speed"), should_write_total_speed);
 		set_node_uniforms(prog_update);
 		draw_fullscreen(nodes.size());
 
-		// TODO use colorMask() to prevent writing to mass/depth components
-		// TODO do the speed computation from the position stage to avoid damped blending
-
-		if (should_write_total_speed) {
-			glReadPixels(tex_size - 1, tex_size - 1, 1, 1, GL_RGBA, GL_FLOAT, ekxx);
-			//log() << ekxx[3];
-			ek_avg = ekxx[3] / nodes.size();
-		}
-
 		// update position
 		glDrawBuffer(GL_COLOR_ATTACHMENT0);
+		glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 		glUseProgram(prog_move);
 		// use hard blend
 		glBlendFunc(GL_ONE, GL_ONE);
+		glUniform1i(glGetUniformLocation(prog_move, "should_write_total_speed"), should_write_total_speed);
 		set_node_uniforms(prog_move);
 		draw_fullscreen(nodes.size());
 
 	}
+
+	glReadPixels(tex_size - 1, tex_size - 1, 1, 1, GL_RG, GL_FLOAT, ekxx);
+	//log() << ekxx[0];
+	ek_avg = ekxx[0] / nodes.size();
 
 	glDisable(GL_BLEND);
 
@@ -523,11 +524,7 @@ void display(const size2i &sz) {
 
 	static const int hmap_size = 512;
 
-	static const int max_nodes = 1024;
-
 	static auto prog_hmap_spec = shader_program_spec().source("heightmap.glsl");
-
-	assert(nodes.size() <= max_nodes);
 
 	GLuint prog_hmap = win->shaderManager()->program(prog_hmap_spec);
 
