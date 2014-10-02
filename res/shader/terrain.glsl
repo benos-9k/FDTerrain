@@ -39,7 +39,7 @@ vec3 positionFromTexel(ivec2 tx) {
 	ivec2 ts = textureSize(sampler_hmap, 0);
 	// texelFetch() is undefined when out of bounds - clamp to edges
 	tx = clamp(tx, ivec2(0), ts - 1);
-	float h = texelFetch(sampler_hmap, tx, 0).r * 0.15; // / hh;
+	float h = texelFetch(sampler_hmap, tx, 0).r * 0.15 / hh;
 	return vec3(vec2(tx) / (vec2(ts) - 1.0) * 2.0 - 1.0, h).xzy;
 }
 

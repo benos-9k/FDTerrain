@@ -10,7 +10,7 @@
 
 out vec4 frag_color;
 
-vec2 edge_dist(vec2 ep0, vec2 ep1, vec2 p) {
+vec3 edge_dist(vec2 ep0, vec2 ep1, vec2 p) {
 	
 	vec2 vx = normalize(ep1 - ep0);
 	vec2 vy = cross(vec3(vx, 0.0), vec3(0.0, 0.0, 1.0)).xy;
@@ -23,42 +23,62 @@ vec2 edge_dist(vec2 ep0, vec2 ep1, vec2 p) {
 	// distance parallel to edge
 	float y = abs(dot(p - ep0, vy));
 
-	return vec2(x, y);
+	// lerp value
+	float z = dot(p - ep0, vx) / distance(ep0, ep1);
+
+	return vec3(x, y, z);
 
 }
 
 void main() {
+	
+	// current position
+	vec2 p = texCoord * 2.0 - 1.0;
 	
 	float a = 0.0;
 
 	for (int i = 0; i < num_nodes; i++) {
 		Node n0 = nodeGet(i);
 
-		float b = 0.0, c = 0.0;
+		float b = 0.0;
+
+		// 'frequency' multiplier
+		float f0 = 10.0 * pow(1.5, n0.d);
+
+		// smoothness exponent
+		float s0 = 2.0 - 0.8 * pow(0.7, n0.d);
+
+		// base height from this node
+		//float h0 = exp(-pow(f * distance(n0.p, p), s));
 
 		for (int j = 0; j < 4; j++) {
 			if (n0.e[j] < 0) continue;
 			Node n1 = nodeGet(n0.e[j]);
 
-			vec2 ed = edge_dist(n0.p, n1.p, texCoord * 2.0 - 1.0);
+			float f1 = 10.0 * pow(1.5, n1.d);
+			float s1 = 2.0 - 0.8 * pow(0.7, n1.d);
 
-			float x = max(ed.x * 36.0 + 0.89, 0.0);
+			vec3 ed = edge_dist(n0.p, n1.p, p);
 
-			float y = ed.y * 12.0;
+			float x0 = max(ed.x * f0, 0.0);
+			float x1 = max(ed.x * f1, 0.0);
 
-			float h = pow(0.5, n0.d) * exp(-pow(x, 3.0)) * exp(-pow(abs(y), 2.0 - 0.8 * pow(0.7, n0.d)));
+			float y0 = ed.y * f0;
+			float y1 = ed.y * f1;
+
+			// TODO the heights are coming out wrong somewhere
+			float h0 = pow(0.5, n0.d) * exp(-pow(y0, s0) - pow(x0, s0));
+			float h1 = pow(0.5, n1.d) * exp(-pow(y1, s1) - pow(x1, s1));
 			
-			b += h;
-			c += 1.0;
+			float h = mix(h0, h1, ed.z);
 
+			b = max(b, h);
 		}
 
-		a += b;
-
-		//float x = distance(n.p, texCoord * 2.0 - 1.0);
-		//x *= 12.0 * pow(1.3, n.d);
-		//float b = pow(0.5, n.d) * exp(-pow(abs(x), 2.0 - 0.8 * pow(0.7, n.d)));
+		a = max(a, b);
 		//a += b;
+
+		//break;
 	}
 
 	frag_color = vec4(vec3(a), 1.0);

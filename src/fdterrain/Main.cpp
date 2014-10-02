@@ -571,7 +571,7 @@ void subdivide_and_branch() {
 		uniform_real_distribution<float> fd(0, 1);
 		Node *n2 = new Node(float3::lerp(n0->p, n1->p, fd(ran0)));
 		n2->d = 0.5f * (n0->d + n1->d);
-		n2->d += 0.5 * fd(ran0) - 0.3;
+		//n2->d += 0.5 * fd(ran0) - 0.1;
 		split_edge(n0, n2, n1);
 		nodes.push_back(n2);
 		active_nodes.push_back(n2);
@@ -582,7 +582,7 @@ void subdivide_and_branch() {
 	for (Node *n : nodes) {
 		branch_q.push(n);
 	}
-	for (unsigned i = 0; i < nodes.size() / 60000 + 0; i++) {
+	for (unsigned i = 0; i < nodes.size() / 6 + 1; i++) {
 		Node *n0 = branch_q.top().get();
 		branch_q.pop();
 		// max allowed edges is 4
