@@ -540,7 +540,7 @@ void init() {
 void subdivide_and_branch() {
 	// one generation finished, prepare next one
 
-	//if (nodes.size() > 1200) return;
+	if (nodes.size() > 32) return;
 	
 	uniform_int_distribution<unsigned> bd(0, 1), cd(0, 100);
 
@@ -582,7 +582,7 @@ void subdivide_and_branch() {
 	for (Node *n : nodes) {
 		branch_q.push(n);
 	}
-	for (unsigned i = 0; i < nodes.size() / 6 + 1; i++) {
+	for (unsigned i = 0; i < nodes.size() / 60000 + 0; i++) {
 		Node *n0 = branch_q.top().get();
 		branch_q.pop();
 		// max allowed edges is 4
