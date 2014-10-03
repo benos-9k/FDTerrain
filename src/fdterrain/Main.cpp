@@ -526,21 +526,26 @@ void split_edge(Node *a, Node *b, Node *c) {
 }
 
 void init() {
-	Node *n0, *n1;
+	Node *n0, *n1, *n2;
 	n0 = new Node(float3(-1, 0, 0));
 	n1 = new Node(float3(1, 0, 0));
+	n2 = new Node(float3(0, 0, 0));
 	n0->m = 1e3;
 	n1->m = 1e3;
+	n2->d = -2;
 	nodes.push_back(n0);
 	nodes.push_back(n1);
-	make_edge(n0, n1);
+	nodes.push_back(n2);
+	active_nodes.push_back(n2);
+	make_edge(n0, n2);
+	make_edge(n2, n1);
 	upload_nodes();
 }
 
 void subdivide_and_branch() {
 	// one generation finished, prepare next one
 
-	if (nodes.size() > 32) return;
+	if (nodes.size() > 2048) return;
 	
 	uniform_int_distribution<unsigned> bd(0, 1), cd(0, 100);
 
@@ -571,7 +576,7 @@ void subdivide_and_branch() {
 		uniform_real_distribution<float> fd(0, 1);
 		Node *n2 = new Node(float3::lerp(n0->p, n1->p, fd(ran0)));
 		n2->d = 0.5f * (n0->d + n1->d);
-		//n2->d += 0.5 * fd(ran0) - 0.1;
+		n2->d += (fd(ran0) - 0.1) * (pow((n2->p - n0->p).mag(), 4.f) * 3 + 0.3);
 		split_edge(n0, n2, n1);
 		nodes.push_back(n2);
 		active_nodes.push_back(n2);
@@ -891,7 +896,7 @@ int main() {
 
 
 		auto frame_start_time = chrono::steady_clock::now();
-		while (chrono::steady_clock::now() - frame_start_time < chrono::milliseconds(30)) {
+		while (chrono::steady_clock::now() - frame_start_time < chrono::milliseconds(50)) {
 			sps += step();
 			// sps += step_gpu();
 		}
