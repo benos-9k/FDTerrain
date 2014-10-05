@@ -50,6 +50,12 @@ Node nodeGet(ivec2 tx) {
 	n.m = temp.z;
 	n.d = temp.w;
 	n.e = texelFetch(sampler_e, tx, 0);
+	int ec = 0;
+	for (int i = 0; i < 4; i++) {
+		ec += n.e[i] >= 0 ? 1 : 0;
+	}
+	// make nodes with more edges higher
+	n.d -= 0.25 * float(ec);
 	return n;
 }
 

@@ -587,9 +587,10 @@ void subdivide_and_branch() {
 	for (Node *n : nodes) {
 		branch_q.push(n);
 	}
+	uniform_int_distribution<unsigned> nodes_dist(0, nodes.size() - 1);
 	for (unsigned i = 0; i < nodes.size() / 6 + 1; i++) {
-		Node *n0 = branch_q.top().get();
-		branch_q.pop();
+		Node *n0 = nodes[nodes_dist(ran0)]; //branch_q.top().get();
+		//branch_q.pop();
 		// max allowed edges is 4
 		if (n0->edges.size() >= 4) continue;
 		if (bd(ran0)) continue;
