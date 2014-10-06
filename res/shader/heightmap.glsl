@@ -84,6 +84,9 @@ void main() {
 		//break;
 	}
 
+	float junk = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
+	a += 0.01 * junk;
+
 	frag_color = vec4(vec3(a), 1.0);
 }
 

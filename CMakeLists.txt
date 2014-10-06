@@ -23,6 +23,10 @@ include_directories("${PROJECT_SOURCE_DIR}/ext/glfw-3.0.3/include")
 add_subdirectory("${PROJECT_SOURCE_DIR}/ext/glew-1.10.0" "${PROJECT_BINARY_DIR}/ext/glew")
 include_directories("${PROJECT_SOURCE_DIR}/ext/glew-1.10.0/include")
 
+# GFFT
+add_subdirectory("${PROJECT_SOURCE_DIR}/ext/gfft" "${PROJECT_BINARY_DIR}/ext/gfft")
+include_directories("${PROJECT_SOURCE_DIR}/ext/gfft/include")
+
 # compiler flags 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 	# Force to always compile with W4
@@ -56,6 +60,7 @@ add_subdirectory(res)
 # set IDE display folders
 SET_PROPERTY(TARGET glfw PROPERTY FOLDER "ext")
 SET_PROPERTY(TARGET glew PROPERTY FOLDER "ext")
+SET_PROPERTY(TARGET gfft PROPERTY FOLDER "ext")
 SET_PROPERTY(TARGET gecom PROPERTY FOLDER "src")
 SET_PROPERTY(TARGET fdterrain PROPERTY FOLDER "src")
 SET_PROPERTY(TARGET res PROPERTY FOLDER "res")

@@ -11,6 +11,9 @@
 #include <queue>
 #include <algorithm>
 #include <stdexcept>
+#include <complex>
+
+#include <GFFT/GFFT.h>
 
 #include <gecom/Window.hpp>
 #include <gecom/Chrono.hpp>
@@ -22,11 +25,274 @@ using namespace std;
 using namespace gecom;
 using namespace i3d;
 
+using complexd = complex<double>;
+
 Window *win = nullptr;
 
 double rotx = math::pi() / 6;
 double roty = math::pi() / 4;
 double dolly = -2.5;
+
+
+// in-place 2D transpose (square)
+void transpose(unsigned size, complexd *data) {
+	for (unsigned i = 0; i < size; i++) {
+		for (unsigned j = i + 1; j < size; j++) {
+			unsigned k0 = size * i + j;
+			unsigned k1 = size * j + i;
+			swap(data[k0], data[k1]);
+		}
+	}
+}
+
+// in-place 1D reverse on multiple datasets (residing sequentially in memory)
+void flipud(unsigned size, unsigned count, complexd *data) {
+	for (unsigned i = 0; i < count; i++) {
+		for (unsigned j = 0; j < size / 2; j++) {
+			unsigned k0 = i * size + j;
+			unsigned k1 = i * size + size - j - 1;
+			swap(data[k0], data[k1]);
+		}
+	}
+}
+
+// in-place 1D FFT on multiple datasets (residing sequentially in memory)
+// result will need 'fftshifting'
+void fft(unsigned size, unsigned count, complexd *data) {
+	using namespace gfft;
+
+	assert((size & (size - 1)) == 0 && "FFT: size must be a non-zero power of two");
+
+	// initialization of the object factory
+	Loki::Factory<AbstractFFT<double>,unsigned int> gfft_factory;
+	FactoryInit<GFFTList<GFFT, 1, 27>::Result>::apply(gfft_factory);
+
+	// power-of-two for data length
+	unsigned p = 0;
+	// assume size >= 1 (guaranteed by the above assertion)
+	for (unsigned i = size >> 1; i > 0; ) {
+		i >>= 1;
+		p++;
+	}
+
+	// create an instance of the GFFT
+	auto gfft = unique_ptr<AbstractFFT<double>>(gfft_factory.CreateObject(p));
+
+	// run the FFTs
+	for (unsigned i = 0; i < count; i++) {
+		gfft->fft(reinterpret_cast<double *>(data + size * i));
+	}
+
+}
+
+// in-place 1D inverse FFT on multiple datasets (residing sequentially in memory)
+// input should be un-fftshifted
+void ifft(unsigned size, unsigned count, complexd *data) {
+	// ifft(f) = fft(flipud(f)) / len(f)
+	// ?????
+	
+	// reverse input in frequency domain
+	//flipud(size, count, data);
+
+	// conj -> fft -> conj
+	transform(data, data + count * size, data, [](complexd x) { return conj(x); });
+	fft(size, count, data);
+	transform(data, data + count * size, data, [](complexd x) { return conj(x); });
+	
+	// scale
+	double scale = 1.0 / size;
+	for (complexd *f = data + size * count; f --> data; ) {
+		(*f) *= scale;
+	}
+}
+
+// in-place 2D FFT (square)
+void fft2(unsigned size, complexd *data) {
+
+	auto time0 = really_high_resolution_clock::now();
+
+	// use separability for 2D
+	fft(size, size, data);
+	transpose(size, data);
+	fft(size, size, data);
+	transpose(size, data);
+
+	double dt = chrono::duration_cast<chrono::duration<double>>(really_high_resolution_clock::now() - time0).count();
+
+	log("FFT2") << "size=" << size << ", took " << dt << "s";
+}
+
+// in-place 2D inverse FFT (square)
+void ifft2(unsigned size, complexd *data) {
+
+	auto time0 = really_high_resolution_clock::now();
+
+	// use separability for 2D
+	ifft(size, size, data);
+	transpose(size, data);
+	ifft(size, size, data);
+	transpose(size, data);
+
+	double dt = chrono::duration_cast<chrono::duration<double>>(really_high_resolution_clock::now() - time0).count();
+
+	log("iFFT2") << "size=" << size << ", took " << dt << "s";
+}
+
+
+// in-place 1D linear convolution using FFT (single dataset)
+// returns the actual size of the output (isize + ksize - 1)
+// data must point to a big enough region of memory (osize will be checked for this)
+unsigned fconv(unsigned isize, unsigned osize, complexd *data, unsigned ksize, const complexd *kdata) {
+	// minimum size to zero-pad for linear convolution (FFT produces circular convolution normally)
+	unsigned n = isize + ksize - 1;
+	// find next POT
+	unsigned p = 1 << unsigned(ceil(log2(n)));
+	assert(p <= osize && "output size is not big enough");
+	
+	// pad kernel and fft
+	vector<complexd> kdata2(p);
+	copy(kdata, kdata + ksize, &kdata2[0]);
+	fft(p, 1, &kdata2[0]);
+	
+	// pad input
+	fill(data + isize, data + osize, 0);
+
+	// convolve
+	fft(p, 1, data);
+	for (unsigned j = 0; j < p; j++) {
+		data[j] *= kdata2[j];
+	}
+	ifft(p, 1, data);
+
+	// TODO is this output size right?
+	return n;
+}
+
+// in-place 1D FrFT on multiple datasets (residing sequentially in memory)
+void frft(unsigned size, unsigned count, complexd *data, double a) {
+	
+	struct impl {
+		static inline complexd chirp(const complexd &x, const complexd &k) {
+			return exp(k * complexd(0, 1) * math::pi() * pow(x, 2.0));
+		}
+	};
+
+	assert((size & (size - 1)) == 0 && "FrFT: size must be a non-zero power of two");
+	
+	// restrict interval, frft is periodic
+	a = fmod(fmod(a, 4.0) + 4.0, 4.0);
+
+	// special cases
+	if (a == 0.0) return;
+	if (a == 2.0) {
+		flipud(size, count, data);
+		return;
+	}
+
+	// reduce to calculable interval [0.5, 1.5]
+	if (a > 2.0) {
+		a -= 2.0;
+		flipud(size, count, data);
+	}
+	if (a > 1.5) {
+		a -= 1.0;
+		frft(size, count, data, 1.0);
+	}
+	if (a < 0.5) {
+		a += 1.0;
+		frft(size, count, data, -1.0);
+	}
+
+	// fractional order -> rotation angle
+	double phi = a * math::pi() * 0.5;
+
+	// allocate memory for upsampling and chirp functions
+	vector<complexd> f(size * 16), ch0(size * 4), ch1(size * 8 - 1);
+
+	// construct first chirp function for multiplication
+	for (int j = 0; j < 4 * size; j++) {
+		double x = double(j - 2 * double(size)) / sqrt(4.0 * size);
+		ch0[j] = impl::chirp(x, -tan(phi * 0.5));
+	}
+
+	// construct second chirp function for convolution
+	for (int j = 0; j < 8 * size - 1; j++) {
+		double x = double(j - 4 * double(size) + 1) / sqrt(4.0 * size);
+		ch1[j] = impl::chirp(x, 1.0 / sin(phi));
+	}
+
+	// normalizing constant
+	complexd scale = exp(complexd(0, -1) * (math::pi() * math::signum(sin(phi)) / 4.0 - 0.5 * phi)) / sqrt(4.0 * size * abs(sin(phi)));
+
+	// process the inputs seperately
+	for (unsigned i = 0; i < count; i++) {
+		
+		// upsample - sinc interpolation
+		// TODO is this correct? i have no idea; should i be using a non-circular convolution?
+		copy(data + i * size, data + (i + 1) * size, &f[0]);
+		fft(size, 1, &f[0]);
+		// middlepad in fourier domain == upsample with low-pass filter
+		// TODO for some reason, we need to edge-pad; maybe to de-circularize something?
+		// the edge padding plays no part in upsampling
+		// edgepad and middlepad to a length of 4n
+		fill(&f[size], &f[0] + f.size(), 0);
+		copy(&f[0], &f[size / 2], &f[size]);
+		copy(&f[size / 2], &f[size], &f[size * 2 + size / 2]);
+		fill(&f[0], &f[size], 0);
+		ifft(size * 2, 1, &f[size]);
+		
+		// chirp multiplication
+		// also include *2 factor to correct the result of the above ifft
+		for (unsigned j = 0; j < 4 * size; j++) {
+			f[j] *= ch0[j] * 2.0;
+		}
+
+		// chirp convolution
+		// why is the kernel size ~2x the data size?
+		fconv(4 * size, f.size(), &f[0], ch1.size(), &ch1[0]);
+
+		// strip edge padding from convolution
+		// by starting at this index and using a size of 4n
+		unsigned j0 = 4 * size - 1;
+
+		// chirp multiplication, again
+		// also do normalizing scale too
+		for (unsigned j = 0; j < 4 * size; j++) {
+			f[j0 + j] *= ch0[j] * scale;
+		}
+
+		// strip edge padding from (after) upsampling
+		// by starting at this index and using a size of 2n
+		j0 += size;
+
+		// decimate (not downsample) and copy back
+		for (unsigned j = 0; j < size; j++) {
+			data[i * size + j] = f[j0 + 2 * j];
+		}
+		
+	}
+	
+}
+
+// in-place 2D FrFT (square)
+void frft2(unsigned size, complexd *data, double a) {
+
+	auto time0 = really_high_resolution_clock::now();
+
+	// conjugate ????
+
+	// use seperability for 2D
+	frft(size, size, data, a);
+	transpose(size, data);
+	transform(data, data + size * size, data, [](complexd x) { return conj(x); });
+	frft(size, size, data, a);
+	transpose(size, data);
+	transform(data, data + size * size, data, [](complexd x) { return conj(x); });
+
+	double dt = chrono::duration_cast<chrono::duration<double>>(really_high_resolution_clock::now() - time0).count();
+
+	log("FrFT2") << "size=" << size << ", took " << dt << "s";
+}
 
 
 struct Node {
@@ -45,7 +311,7 @@ struct Node {
 
 	inline float charge() {
 		// TODO tweak
-		return max<float>(8.f + 0.0f * d, 2.f);
+		return max<float>(10.f * pow(0.9f, d), 2.f);
 	}
 
 	inline Node * edge(unsigned i) const {
@@ -544,8 +810,6 @@ void init() {
 
 void subdivide_and_branch() {
 	// one generation finished, prepare next one
-
-	if (nodes.size() > 2048) return;
 	
 	uniform_int_distribution<unsigned> bd(0, 1), cd(0, 100);
 
@@ -589,6 +853,7 @@ void subdivide_and_branch() {
 	}
 	uniform_int_distribution<unsigned> nodes_dist(0, nodes.size() - 1);
 	for (unsigned i = 0; i < nodes.size() / 6 + 1; i++) {
+		// i think random branching works at least as well as any prioritzation ive come up with
 		Node *n0 = nodes[nodes_dist(ran0)]; //branch_q.top().get();
 		//branch_q.pop();
 		// max allowed edges is 4
@@ -601,7 +866,6 @@ void subdivide_and_branch() {
 		nodes.push_back(n2);
 		active_nodes.push_back(n2);
 	}
-
 }
 
 unsigned step_gpu() {
@@ -689,6 +953,11 @@ unsigned step_gpu() {
 
 unsigned step() {
 	
+	if (nodes.size() > 2048) {
+		// finished
+		return 0;
+	}
+
 	if (ek_avg < 2.0) {
 		subdivide_and_branch();
 	}
@@ -787,6 +1056,50 @@ void make_hmap() {
 	set_node_uniforms(prog_hmap);
 
 	draw_fullscreen();
+
+}
+
+void finish_hmap() {
+
+	if (!tex_hmap) throw 6.44;
+
+	static const int hmap_size = 512;
+
+	// download hmap
+	vector<float> hmap(hmap_size * hmap_size);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, tex_hmap);
+	glGetTexImage(GL_TEXTURE_2D, 0, GL_RED, GL_FLOAT, &hmap[0]);
+
+	// fourier
+	vector<complexd> hmapc(hmap_size * hmap_size);
+	copy(hmap.begin(), hmap.end(), hmapc.begin());
+
+	fft2(hmap_size, &hmapc[0]);
+
+	static const int a = hmap_size / 2 - hmap_size / 4;
+	static const int b = hmap_size / 2 + hmap_size / 4;
+	for (int i = 0; i < hmap_size; i++) {
+		for (int j = 0; j < hmap_size; j++) {
+			
+			if ((i >= a && i <= b) || (j >= a && j <= b)) {
+				//hmapc[i * hmap_size + j] = 0;
+			}
+		}
+	}
+
+	ifft2(hmap_size, &hmapc[0]);
+
+	//frft2(hmap_size, &hmapc[0], 0.05);
+
+	transform(hmapc.begin(), hmapc.end(), hmap.begin(), [](complexd x) { return abs(x); });
+
+	// upload hmap to continue display
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, hmap_size, hmap_size, 0, GL_RED, GL_FLOAT, &hmap[0]);
+	glGenerateMipmap(GL_TEXTURE_2D);
+
+	// export (OBJ?)
+
 
 }
 
@@ -901,14 +1214,23 @@ int main() {
 	auto time_last_fps = chrono::steady_clock::now();
 	unsigned sps = 0;
 
+	bool done = false;
+
 	while (!win->shouldClose()) {
 		glfwPollEvents();
 
 
 		auto frame_start_time = chrono::steady_clock::now();
-		while (chrono::steady_clock::now() - frame_start_time < chrono::milliseconds(50)) {
+		do {
 			sps += step();
 			// sps += step_gpu();
+		} while (chrono::steady_clock::now() - frame_start_time < chrono::milliseconds(50));
+
+		if (sps == 0 && !done) {
+			// done, make final hmap
+			make_hmap();
+			finish_hmap();
+			done = true;
 		}
 
 		// if using step() need to upload before draw
@@ -919,10 +1241,17 @@ int main() {
 			time_last_fps = chrono::steady_clock::now();
 
 			// reduce frequency of heightmap computation
-			make_hmap();
+			if (!done) make_hmap();
+
+			//if (done) finish_hmap();
 
 			ostringstream title;
 			title << "Force Directed Terrain [" << nodes.size() << " nodes, " << sps << " SPS, " << ek_avg << " EKavg]";
+
+			if (done) {
+				title << " [DONE AND EXPORTED]";
+			}
+
 			win->title(title.str());
 
 			sps = 0;
