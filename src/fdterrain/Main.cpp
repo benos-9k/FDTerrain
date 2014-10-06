@@ -751,7 +751,7 @@ unsigned step() {
 	return 1;
 }
 
-void display(const size2i &sz) {
+void make_hmap() {
 
 	static const int hmap_size = 512;
 
@@ -788,6 +788,14 @@ void display(const size2i &sz) {
 
 	draw_fullscreen();
 
+}
+
+void display(const size2i &sz) {
+
+	static const int hmap_size = 512;
+
+	//make_hmap();
+	
 	// now draw terrain
 
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
@@ -888,6 +896,7 @@ int main() {
 	}).forever();
 
 	init();
+	make_hmap();
 
 	auto time_last_fps = chrono::steady_clock::now();
 	unsigned sps = 0;
@@ -908,6 +917,9 @@ int main() {
 
 		if (chrono::steady_clock::now() - time_last_fps > chrono::seconds(1)) {
 			time_last_fps = chrono::steady_clock::now();
+
+			// reduce frequency of heightmap computation
+			make_hmap();
 
 			ostringstream title;
 			title << "Force Directed Terrain [" << nodes.size() << " nodes, " << sps << " SPS, " << ek_avg << " EKavg]";
