@@ -48,9 +48,6 @@ void main() {
 		// smoothness exponent
 		float s0 = 2.0 - 0.7 * pow(0.95, n0.d);
 
-		// base height from this node
-		//float h0 = exp(-pow(f * distance(n0.p, p), s));
-
 		for (int j = 0; j < 4; j++) {
 			if (n0.e[j] < 0) continue;
 			Node n1 = nodeGet(n0.e[j]);
@@ -66,17 +63,13 @@ void main() {
 			float y0 = ed.y * f0;
 			float y1 = ed.y * f1;
 
-			// TODO the heights are coming out wrong somewhere
-			//float h0 = pow(0.9, n0.d) * exp(-pow(y0, s0) - pow(x0, s0));
-			//float h1 = pow(0.9, n1.d) * exp(-pow(y1, s1) - pow(x1, s1));
 			
-			//float h = mix(h0, h1, ed.z);
-
 			float l = clamp(ed.z, 0.0, 1.0);
 			float h = pow(0.8, mix(n0.d, n1.d, l)) * exp(-pow(mix(y0, y1, l), mix(s0, s1, l)) - pow(mix(x0, x1, l), mix(s0, s1, l)));
 
 			b = max(b, h);
 		}
+
 
 		a = max(a, b);
 		//a += b;
@@ -84,6 +77,7 @@ void main() {
 		//break;
 	}
 
+	// noise (white), just cause
 	float junk = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
 	a += 0.01 * junk;
 

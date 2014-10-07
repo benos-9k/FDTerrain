@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <iostream>
 #include <sstream>
+#include <fstream>
 #include <vector>
 #include <unordered_set>
 #include <unordered_map>
@@ -24,6 +25,8 @@
 using namespace std;
 using namespace gecom;
 using namespace i3d;
+
+const unsigned hmap_size = 512;
 
 using complexd = complex<double>;
 
@@ -311,7 +314,8 @@ struct Node {
 
 	inline float charge() {
 		// TODO tweak
-		return max<float>(10.f * pow(0.9f, d), 2.f);
+		// this is sensitive, anything far from constant breaks things
+		return 8.f; // max<float>(10.f * pow(0.9f, d), 2.f);
 	}
 
 	inline Node * edge(unsigned i) const {
@@ -329,10 +333,12 @@ struct Node {
 		}
 		// dont divide by num edges, works better
 		// return a + 0.01 * d;
+		// slight depth bias, this is also sensitive
 		return a + 0.02 * (d + 1.f);
 	}
 
 	inline float branch_priority() const {
+		// this isnt used atm, cause i cant make it work well
 		// TODO how does this work?
 		// TODO leaves should not branch?
 		//if (edges.size() <= 1) return 0.f;
@@ -979,6 +985,8 @@ unsigned step() {
 		// acting force
 		float3 f;
 
+		// containment forces
+		// TODO tweak; this is sensitive
 		float3 fff = float3(-n0->p.x(), -n0->p.y(), 0.f);
 		fff *= 0.65;
 		fff = fff * fff * fff;
@@ -1022,7 +1030,7 @@ unsigned step() {
 
 void make_hmap() {
 
-	static const int hmap_size = 512;
+	//static const int hmap_size = 512;
 
 	static auto prog_hmap_spec = shader_program_spec().source("heightmap.glsl");
 
@@ -1063,7 +1071,7 @@ void finish_hmap() {
 
 	if (!tex_hmap) throw 6.44;
 
-	static const int hmap_size = 512;
+	//static const int hmap_size = 512;
 
 	// download hmap
 	vector<float> hmap(hmap_size * hmap_size);
@@ -1075,7 +1083,7 @@ void finish_hmap() {
 	vector<complexd> hmapc(hmap_size * hmap_size);
 	copy(hmap.begin(), hmap.end(), hmapc.begin());
 
-	fft2(hmap_size, &hmapc[0]);
+	//fft2(hmap_size, &hmapc[0]);
 
 	static const int a = hmap_size / 2 - hmap_size / 4;
 	static const int b = hmap_size / 2 + hmap_size / 4;
@@ -1088,9 +1096,11 @@ void finish_hmap() {
 		}
 	}
 
-	ifft2(hmap_size, &hmapc[0]);
+	//ifft2(hmap_size, &hmapc[0]);
 
 	//frft2(hmap_size, &hmapc[0], 0.05);
+
+	// i havent succeeded in anything interesting in the fourier domain
 
 	transform(hmapc.begin(), hmapc.end(), hmap.begin(), [](complexd x) { return abs(x); });
 
@@ -1098,14 +1108,21 @@ void finish_hmap() {
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, hmap_size, hmap_size, 0, GL_RED, GL_FLOAT, &hmap[0]);
 	glGenerateMipmap(GL_TEXTURE_2D);
 
-	// export (OBJ?)
+	// export heightmap (for albireo)
+	ofstream hmapfs("./nnnntt.hmap");
+	hmapfs << hmap_size << ' ' << hmap_size << " 32 32 400" << endl;
+	for (float h : hmap) {
+		hmapfs << h << endl;
+	}
+
+	// export OBJ, cause i have to get something into maya
 
 
 }
 
 void display(const size2i &sz) {
 
-	static const int hmap_size = 512;
+	//static const int hmap_size = 512;
 
 	//make_hmap();
 	
