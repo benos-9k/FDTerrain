@@ -1116,7 +1116,29 @@ void finish_hmap() {
 	}
 
 	// export OBJ, cause i have to get something into maya
+	ofstream objfs("./nnnntt.obj");
 
+	// vertices
+	for (int i = 0; i < hmap_size; i++) {
+		for (int j = 0; j < hmap_size; j++) {
+			float x = (i + 0.5f) / float(hmap_size) * 2.f - 1.f;
+			float z = (j + 0.5f) / float(hmap_size) * 2.f - 1.f;
+			float y = hmap[i * hmap_size + j] * 0.1f;
+			objfs << "v " << x << ' ' << y << ' ' << z << endl;
+		}
+	}
+
+	// faces
+	for (int i = 0; i < hmap_size - 1; i++) {
+		for (int j = 0; j < hmap_size - 1; j++) {
+			// remember obj indices are 1-based
+			int k00 = i * hmap_size + j + 1;
+			int k10 = i * hmap_size + j + 1 + 1;
+			int k11 = (i + 1) * hmap_size + j + 1 + 1;
+			int k01 = (i + 1) * hmap_size + j + 1;
+			objfs << "f " << k00 << ' ' << k10 << ' ' << k11 << ' ' << k01 << endl;
+		}
+	}
 
 }
 
