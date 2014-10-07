@@ -338,7 +338,7 @@ namespace gecom {
 					break;
 				default:
 					// shouldn't happen
-					oss << "-feedback-???=";
+					oss << "-feedback-unknown=";
 					break;
 				}
 				for (auto it = spec.m_xfb_varyings.begin(); it < spec.m_xfb_varyings.end() - 1; ++it) {
